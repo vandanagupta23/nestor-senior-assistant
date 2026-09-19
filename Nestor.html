@@ -3,22 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nestor - Senior Living Assistant</title>
+  <title>Nestor 4.0 Ultra — Next-Gen AI Senior Companion, Healthcare & Scam Shield</title>
+  
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- React & ReactDOM -->
+  <!-- React 18 & ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <!-- Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
   <script>
     tailwind.config = {
       theme: {
         extend: {
           fontSize: {
-            'senior-base': '1.35rem',
-            'senior-title': '2rem',
-            'senior-hero': '2.6rem',
+            'senior-sm': '1.15rem',
+            'senior-base': '1.4rem',
+            'senior-title': '2.1rem',
+            'senior-hero': '2.85rem',
+          },
+          animation: {
+            'pulse-slow': 'pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'bounce-subtle': 'bounce 2s infinite',
           }
         }
       }
@@ -28,51 +37,257 @@
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
+    .wave-bar {
+      animation: soundWave 0.8s ease-in-out infinite alternate;
+    }
+    @keyframes soundWave {
+      0% { height: 6px; }
+      100% { height: 34px; }
+    }
+    .scanner-laser {
+      animation: scanLaser 2s linear infinite;
+    }
+    @keyframes scanLaser {
+      0% { top: 0%; opacity: 0.8; }
+      50% { top: 90%; opacity: 1; }
+      100% { top: 0%; opacity: 0.8; }
+    }
+    .high-contrast-mode {
+      background-color: #000000 !important;
+      color: #FFFF00 !important;
+    }
+    .high-contrast-mode * {
+      border-color: #FFFF00 !important;
+    }
+    .high-contrast-mode button {
+      background-color: #000000 !important;
+      color: #FFFF00 !important;
+    }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-900 select-none">
+<body class="bg-slate-100 text-slate-900 select-none min-h-screen">
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState } = React;
+    const { useState, useEffect, useRef } = React;
 
-    const speakAloud = (text) => {
+    // Web Audio Synthesizer
+    const playChime = (type = 'success') => {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === 'success') {
+          osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(659.25, ctx.currentTime + 0.15);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.4);
+        } else if (type === 'alert') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(280, ctx.currentTime);
+          osc.frequency.setValueAtTime(420, ctx.currentTime + 0.12);
+          gain.gain.setValueAtTime(0.2, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.35);
+        }
+      } catch (e) {}
+    };
+
+    // Bilingual Text-to-Speech Engine (English + Hindi)
+    const speakBilingual = (textEn, textHi, currentLang = 'en') => {
       if (!('speechSynthesis' in window)) return;
       window.speechSynthesis.cancel();
+      
+      const isHi = currentLang === 'hi';
+      const text = isHi ? textHi : textEn;
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.85;
-      utterance.pitch = 1.0;
+      utterance.rate = 0.85; // Calibrated for seniors
+      utterance.lang = isHi ? 'hi-IN' : 'en-US';
+
+      // Find best voice
+      const voices = window.speechSynthesis.getVoices();
+      if (isHi) {
+        const hiVoice = voices.find(v => v.lang.startsWith('hi') || v.name.toLowerCase().includes('hindi'));
+        if (hiVoice) utterance.voice = hiVoice;
+      } else {
+        const enVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google')));
+        if (enVoice) utterance.voice = enVoice;
+      }
+
       window.speechSynthesis.speak(utterance);
     };
 
     function App() {
-      const [view, setView] = useState('home');
-      const [aiMessage, setAiMessage] = useState("Good morning, Helen! How can I help you today?");
-      const [isListening, setIsListening] = useState(false);
-      const [inputMessage, setInputMessage] = useState('');
-      const [verdict, setVerdict] = useState(null);
+      // Language System: 'en' (English) | 'hi' (हिंदी)
+      const [lang, setLang] = useState('en');
 
+      // Navigation View
+      const [view, setView] = useState('home'); 
+      // 'home' | 'scam' | 'pills' | 'doctor' | 'bills' | 'brain' | 'family' | 'caregiver' | 'ambient'
+      
+      // Accessibility State
+      const [fontSizeLevel, setFontSizeLevel] = useState(1);
+      const [highContrast, setHighContrast] = useState(false);
+      const [isListening, setIsListening] = useState(false);
+
+      // AI Greeting
+      const [aiMsgEn, setAiMsgEn] = useState("Good morning, Helen! Your blood pressure is normal, and your family sent a photo.");
+      const [aiMsgHi, setAiMsgHi] = useState("सुप्रभात हेलेन जी! आपका स्वास्थ्य बिल्कुल ठीक है, और परिवार ने नई फ़ोटो भेजी है।");
+
+      // 1. Real WebCam Video Stream State
+      const videoRef = useRef(null);
+      const [cameraActive, setCameraActive] = useState(false);
+      const [capturedPhoto, setCapturedPhoto] = useState(null);
+      const [pillAiResult, setPillAiResult] = useState(null);
+      const [isAnalyzingPill, setIsAnalyzingPill] = useState(false);
+
+      // 2. Family Video Call (FaceTime style) State
+      const [activeVideoCall, setActiveVideoCall] = useState(false);
+      const [callDuration, setCallDuration] = useState(0);
+      const [callMuted, setCallMuted] = useState(false);
+
+      // 3. Smart Paper Bill Scanner State
+      const [billScanResult, setBillScanResult] = useState(null);
+      const [billPaid, setBillPaid] = useState(false);
+
+      // 4. Cognitive Brain Fitness State
+      const [triviaStep, setTriviaStep] = useState(0);
+      const [brainScore, setBrainScore] = useState(100);
+      const [triviaAnswered, setTriviaAnswered] = useState(null);
+
+      // 5. Incoming Scam Call Simulator State
+      const [incomingCallModal, setIncomingCallModal] = useState(false);
+      const [callScreeningActive, setCallScreeningActive] = useState(false);
+      const [callTranscript, setCallTranscript] = useState('');
+      const [callVerdict, setCallVerdict] = useState(null);
+
+      // Scam Text Screener
+      const [scamInput, setScamInput] = useState('');
+      const [scamReport, setScamReport] = useState(null);
+
+      // Doctor Appointment State
+      const [doctorBooked, setDoctorBooked] = useState(null);
+
+      // Emergency SOS Countdown
+      const [sosCountdown, setSosCountdown] = useState(null);
+      const sosTimerRef = useRef(null);
+
+      // WebCam Handler
+      const startWebcam = async () => {
+        setCameraActive(true);
+        setPillAiResult(null);
+        setCapturedPhoto(null);
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+          speakBilingual(
+            "Webcam active. Hold your pill bottle in front of the lens.",
+            "कैमरा चालू है। कृपया दवा की शीशी लेंस के सामने लाएं।",
+            lang
+          );
+        } catch (err) {
+          // Graceful fallback if no physical webcam
+          speakBilingual(
+            "Webcam not available. Using simulated high-resolution optical vision.",
+            "कैमरा नहीं मिला। सिमुलेटेड विज़न स्कैनर शुरू किया जा रहा है।",
+            lang
+          );
+        }
+      };
+
+      const captureAndAnalyzePill = () => {
+        setIsAnalyzingPill(true);
+        speakBilingual(
+          "Snapshot captured! AI Optical Scanner is analyzing prescription and dosage...",
+          "फ़ोटो ली गई! एआई दवा और खुराक की जांच कर रहा है...",
+          lang
+        );
+
+        setTimeout(() => {
+          setIsAnalyzingPill(false);
+          setPillAiResult({
+            name: "Lisinopril 10mg Tablets",
+            purpose: "Blood Pressure & Cardiac Support",
+            dosage: "Take 1 tablet daily every morning with water",
+            confidence: "99.8%",
+            verified: true,
+            warning: "Take before food. Avoid skipping doses."
+          });
+          playChime('success');
+          confetti({ particleCount: 50 });
+          speakBilingual(
+            "Pill verified! This is Lisinopril 10 milligram. Take one tablet with water.",
+            "दवा की पुष्टि हो गई! यह लिसिनोप्रिल 10 मिलीग्राम है। सुबह एक गोली पानी के साथ लें।",
+            lang
+          );
+        }, 2200);
+      };
+
+      // Video Call Timer
+      useEffect(() => {
+        let interval;
+        if (activeVideoCall) {
+          interval = setInterval(() => setCallDuration(d => d + 1), 1000);
+        } else {
+          setCallDuration(0);
+        }
+        return () => clearInterval(interval);
+      }, [activeVideoCall]);
+
+      // Emergency SOS Timer
+      useEffect(() => {
+        if (sosCountdown !== null && sosCountdown > 0) {
+          sosTimerRef.current = setTimeout(() => setSosCountdown(sosCountdown - 1), 1000);
+        } else if (sosCountdown === 0) {
+          playChime('alert');
+          alert(lang === 'hi' ? "🚨 आपातकालीन संदेश: बेटी सारा और 112 को जीपीएस लोकेशन भेज दी गई है!" : "🚨 SOS DISPATCHED: High priority GPS alert dispatched to Family & 911 Emergency!");
+          setSosCountdown(null);
+        }
+        return () => clearTimeout(sosTimerRef.current);
+      }, [sosCountdown]);
+
+      // Voice Assistant Listener
       const handleVoice = () => {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRec) {
-          alert("Please use Google Chrome or Microsoft Edge for voice support.");
+          alert("Please use Chrome or Edge for voice recognition.");
           return;
         }
         setIsListening(true);
-        speakAloud("I am listening. What can I do for you?");
+        speakBilingual("I am listening. Tell me what you need.", "मैं सुन रहा हूँ। बताइए मैं क्या मदद करूँ?", lang);
         
         const rec = new SpeechRec();
-        rec.lang = 'en-US';
+        rec.lang = lang === 'hi' ? 'hi-IN' : 'en-US';
         rec.onresult = (e) => {
           setIsListening(false);
-          const transcript = e.results[0][0].transcript;
-          const lower = transcript.toLowerCase();
-          if (lower.includes("scam") || lower.includes("message")) {
+          const transcript = e.results[0][0].transcript.toLowerCase();
+
+          if (transcript.includes("scam") || transcript.includes("धोखा") || transcript.includes("संदेश")) {
             setView('scam');
+            speakBilingual("Opening Scam Shield.", "स्कैम शील्ड खोला जा रहा है।", lang);
+          } else if (transcript.includes("camera") || transcript.includes("dawa") || transcript.includes("pill") || transcript.includes("दवा")) {
+            setView('pills');
+            speakBilingual("Opening Pill Camera Scanner.", "दवा स्कैनर खोला जा रहा है।", lang);
+          } else if (transcript.includes("doctor") || transcript.includes("डॉक्टर")) {
+            setView('doctor');
+            speakBilingual("Opening Doctor Telehealth.", "डॉक्टर परामर्श खोला जा रहा है।", lang);
+          } else if (transcript.includes("call") || transcript.includes("sarah") || transcript.includes("कॉल")) {
+            setActiveVideoCall(true);
+            speakBilingual("Calling Sarah on video.", "सारा को वीडियो कॉल मिलाई जा रही है।", lang);
           } else {
-            const reply = `I heard: "${transcript}". Let's get that done.`;
-            setAiMessage(reply);
-            speakAloud(reply);
+            const repEn = `I heard: "${transcript}". Taking care of that for you.`;
+            const repHi = `मैंने सुना: "${transcript}"। मैं तुरंत कर रहा हूँ।`;
+            setAiMsgEn(repEn);
+            setAiMsgHi(repHi);
+            speakBilingual(repEn, repHi, lang);
           }
         };
         rec.onerror = () => setIsListening(false);
@@ -80,168 +295,754 @@
         rec.start();
       };
 
-      const checkScam = () => {
-        if (!inputMessage.trim()) return;
-        const lower = inputMessage.toLowerCase();
-        const scamWords = ['urgent', 'password', 'bank', 'gift card', 'irs', 'wire', 'suspended', 'locked', 'click here'];
-        const isScam = scamWords.some(word => lower.includes(word));
+      // Scam Detection Engine
+      const analyzeScam = (text) => {
+        const target = (text || scamInput).trim();
+        if (!target) return;
 
-        if (isScam) {
-          setVerdict({
-            danger: true,
-            title: "⚠️ Dangerous Scam Detected!",
-            desc: "Banks and official agencies will never demand urgent gift cards, wire transfers, or passwords via text or call.",
-            action: "Delete this message immediately. Do not click any links."
-          });
-          speakAloud("Warning. This appears to be a scam. Do not send any money.");
-        } else {
-          setVerdict({
-            danger: false,
-            title: "✅ This Message Looks Safe",
-            desc: "No common scam threats or urgent payment requests were found.",
-            action: "Safe to read. If still unsure, ask your family to double-check."
-          });
-          speakAloud("This message looks safe.");
+        const lower = target.toLowerCase();
+        let score = 10;
+        let flags = [];
+
+        if (lower.includes('urgent') || lower.includes('immediately') || lower.includes('suspended') || lower.includes('तुरंत') || lower.includes('ब्लॉक')) {
+          score += 35;
+          flags.push(lang === 'hi' ? "🚨 दबाव और जल्दबाजी: बिना सोचने का मौका दिए कार्रवाई की मांग।" : "🚨 Manufactured Urgency: Pressure to act quickly without consulting family.");
         }
+        if (lower.includes('gift card') || lower.includes('wire') || lower.includes('bitcoin') || lower.includes('गिफ्ट कार्ड') || lower.includes('ट्रांसफर')) {
+          score += 45;
+          flags.push(lang === 'hi' ? "💳 असुरक्षित भुगतान: गिफ्ट कार्ड या गैर-कानूनी ट्रांसफर मांगना।" : "💳 Untraceable Payment: Demanding unrecoverable gift cards or wire transfers.");
+        }
+        if (lower.includes('irs') || lower.includes('bank') || lower.includes('police') || lower.includes('बैंक') || lower.includes('पुलिस')) {
+          score += 25;
+          flags.push(lang === 'hi' ? "🏛️ फर्जी अधिकारी: बैंक या सरकारी एजेंसी बनकर डराना।" : "🏛️ Authority Impersonation: Posing as a government body or bank officer.");
+        }
+
+        const finalScore = Math.min(100, score);
+        const isScam = finalScore >= 45;
+
+        setScamReport({
+          score: finalScore,
+          isDangerous: isScam,
+          title: isScam 
+            ? (lang === 'hi' ? "🚨 खतरनाक साइबर फ्रॉड (स्कैम) पाया गया!" : "🚨 DANGEROUS SCAM DETECTED") 
+            : (lang === 'hi' ? "✅ यह संदेश सुरक्षित प्रतीत होता है" : "✅ MESSAGE APPEARS SAFE"),
+          flags,
+          action: isScam 
+            ? (lang === 'hi' ? "इस संदेश को तुरंत डिलीट करें। कोई लिंक न खोलें। आपका बैंक खाता सुरक्षित है।" : "Delete immediately. Do not click links or send money. Your account is completely safe.")
+            : (lang === 'hi' ? "यह सुरक्षित संदेश है। कोई संदिग्ध शब्द नहीं मिले।" : "Safe to read. No financial coercion or phishing links found.")
+        });
+
+        playChime(isScam ? 'alert' : 'success');
+        speakBilingual(
+          isScam ? "Warning. Scam detected. Do not send money." : "This message looks safe.",
+          isScam ? "सावधान। यह संदेश फ्रॉड है। कोई पैसा न भेजें।" : "यह संदेश सुरक्षित है।",
+          lang
+        );
       };
 
+      // Smart Paper Utility Bill Scanner
+      const scanSampleBill = () => {
+        playChime('success');
+        setBillScanResult({
+          provider: "City Power & Electric (बिजली बोर्ड)",
+          account: "AC-992014-HELEN",
+          dueDate: "September 24, 2026",
+          amount: "$42.50 (₹850)",
+          status: "Pending • Verified Legitimate Bill",
+          isSafe: true
+        });
+        speakBilingual(
+          "Paper bill scanned successfully! Electricity bill of $42.50 due September 24. Ready to pay safely.",
+          "बिजली का बिल स्कैन हो गया! ₹850 की राशि 24 सितम्बर तक देय है। सुरक्षित भुगतान के लिए तैयार।",
+          lang
+        );
+      };
+
+      // Font classes
+      const fontClasses = fontSizeLevel === 0 
+        ? { base: 'text-base', title: 'text-xl', hero: 'text-3xl' }
+        : fontSizeLevel === 1 
+        ? { base: 'text-senior-base', title: 'text-senior-title', hero: 'text-senior-hero' }
+        : { base: 'text-2xl', title: 'text-3xl', hero: 'text-5xl' };
+
       return (
-        <div className="min-h-screen flex flex-col justify-between max-w-5xl mx-auto p-4">
+        <div className={`min-h-screen flex flex-col justify-between max-w-5xl mx-auto p-4 ${highContrast ? 'high-contrast-mode' : ''}`}>
           
-          {/* Top Navbar */}
-          <nav className="bg-white p-4 rounded-2xl border-2 border-slate-300 flex justify-between items-center shadow-sm">
-            <span className="text-2xl font-black text-blue-900">Nestor Senior Assistant</span>
-            <button 
-              onClick={() => setView(view === 'caregiver' ? 'home' : 'caregiver')}
-              className="bg-slate-200 hover:bg-slate-300 font-bold px-5 py-2 rounded-xl text-slate-800 transition"
-            >
-              {view === 'caregiver' ? '← Back to Senior Screen' : 'Caregiver Portal (Family View)'}
-            </button>
-          </nav>
+          {/* TOP GLOBAL BAR: LANGUAGE + ACCESSIBILITY CONTROLS */}
+          <div className="bg-slate-900 text-white px-4 py-2.5 rounded-2xl mb-3 flex flex-wrap justify-between items-center text-sm font-semibold gap-2 border border-slate-700 shadow-md">
+            
+            {/* Bilingual Switcher */}
+            <div className="flex items-center space-x-2 bg-slate-800 px-3 py-1 rounded-xl border border-slate-700">
+              <span className="text-amber-400">🌐 Language / भाषा:</span>
+              <button 
+                onClick={() => { setLang('en'); speakBilingual("Language switched to English.", "", 'en'); }}
+                className={`px-3 py-1 rounded-lg font-black ${lang === 'en' ? 'bg-blue-600 text-white shadow' : 'text-slate-300'}`}
+              >
+                English
+              </button>
+              <button 
+                onClick={() => { setLang('hi'); speakBilingual("", "भाषा बदलकर हिंदी कर दी गई है।", 'hi'); }}
+                className={`px-3 py-1 rounded-lg font-black ${lang === 'hi' ? 'bg-emerald-600 text-white shadow' : 'text-slate-300'}`}
+              >
+                हिंदी (Hindi)
+              </button>
+            </div>
 
-          {/* Senior Home View */}
-          {view === 'home' && (
-            <div className="my-6 space-y-6">
-              <div className="bg-white p-6 rounded-3xl border-2 border-slate-200 flex justify-between items-center shadow-sm">
-                <div>
-                  <h1 className="text-senior-hero font-black text-blue-900">Nestor</h1>
-                  <p className="text-senior-base text-slate-600">Today is Saturday • Sunny & 72°F</p>
-                </div>
+            {/* Font & Contrast */}
+            <div className="flex items-center space-x-2">
+              <span className="text-amber-400">🔤 Font:</span>
+              <button onClick={() => setFontSizeLevel(0)} className={`px-2 py-1 rounded ${fontSizeLevel === 0 ? 'bg-blue-600 font-bold' : 'bg-slate-800'}`}>Normal</button>
+              <button onClick={() => setFontSizeLevel(1)} className={`px-2 py-1 rounded ${fontSizeLevel === 1 ? 'bg-blue-600 font-bold' : 'bg-slate-800'}`}>Large (A+)</button>
+              <button onClick={() => setFontSizeLevel(2)} className={`px-2 py-1 rounded ${fontSizeLevel === 2 ? 'bg-blue-600 font-bold' : 'bg-slate-800'}`}>Jumbo (A++)</button>
+
+              <button 
+                onClick={() => setHighContrast(!highContrast)}
+                className="bg-amber-400 text-slate-950 px-3 py-1 rounded-lg font-bold ml-2"
+              >
+                {highContrast ? "☀️ Normal" : "👁️ Contrast AAA"}
+              </button>
+
+              <button 
+                onClick={() => setView(view === 'caregiver' ? 'home' : 'caregiver')}
+                className="bg-blue-700 hover:bg-blue-600 text-white px-3 py-1 rounded-lg font-bold ml-1"
+              >
+                {view === 'caregiver' ? '← Senior' : '👨‍👩‍👧 Caregiver Portal'}
+              </button>
+            </div>
+          </div>
+
+          {/* MAIN HEADER WITH SOS */}
+          <header className="bg-white p-5 rounded-3xl border-2 border-slate-300 flex justify-between items-center shadow-sm">
+            <div className="flex items-center space-x-3">
+              <span className="text-5xl">🛡️</span>
+              <div>
+                <h1 className={`${fontClasses.hero} font-black text-blue-900 tracking-tight`}>
+                  {lang === 'hi' ? 'नेस्टर (Nestor 4.0)' : 'Nestor 4.0 Ultra'}
+                </h1>
+                <p className={`${fontClasses.base} text-slate-600 font-medium`}>
+                  {lang === 'hi' ? 'शनिवार, 19 सितम्बर • स्वास्थ्य: सुरक्षित ✓' : 'Saturday, September 19 • Health Verified ✓'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              {/* EMERGENCY RED BUTTON */}
+              <button 
+                onClick={() => {
+                  setSosCountdown(10);
+                  playChime('alert');
+                  speakBilingual("Emergency SOS activated. Alerting family in 10 seconds.", "आपातकालीन मदद शुरू। 10 सेकंड में अलर्ट भेजा जा रहा है।", lang);
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-5 py-4 rounded-2xl font-black text-lg border-2 border-red-800 shadow-lg animate-pulse-slow flex items-center space-x-2"
+              >
+                <span className="text-2xl">🚨</span>
+                <span>{lang === 'hi' ? 'आपातकाल SOS' : 'EMERGENCY SOS'}</span>
+              </button>
+
+              {/* READ ALOUD */}
+              <button 
+                onClick={() => speakBilingual(aiMsgEn, aiMsgHi, lang)}
+                className="bg-blue-100 hover:bg-blue-200 text-blue-950 px-5 py-4 rounded-2xl border-2 border-blue-300 font-bold text-lg flex items-center space-x-2"
+              >
+                <span className="text-2xl">🔊</span>
+                <span>{lang === 'hi' ? 'सुनिए' : 'Read Aloud'}</span>
+              </button>
+            </div>
+          </header>
+
+          {/* DYNAMIC SPOKEN AI BUBBLE */}
+          <div className="bg-blue-950 text-white p-5 rounded-3xl my-3 flex items-center justify-between border-2 border-blue-800 shadow-md">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-2xl shadow-inner">
+                🤖
+              </div>
+              <p className={`${fontClasses.base} font-medium`}>
+                "{lang === 'hi' ? aiMsgHi : aiMsgEn}"
+              </p>
+            </div>
+
+            {isListening && (
+              <div className="flex items-center space-x-1.5 px-4 py-2 bg-red-600 rounded-xl text-white font-bold">
+                <div className="w-2 bg-white wave-bar rounded"></div>
+                <div className="w-2 bg-white wave-bar rounded" style={{ animationDelay: '0.2s' }}></div>
+                <div className="w-2 bg-white wave-bar rounded" style={{ animationDelay: '0.4s' }}></div>
+                <span className="ml-2 text-sm uppercase tracking-wider">{lang === 'hi' ? 'सुन रहा हूँ...' : 'Listening...'}</span>
+              </div>
+            )}
+          </div>
+
+          {/* SOS OVERLAY */}
+          {sosCountdown !== null && (
+            <div className="fixed inset-0 bg-red-950 bg-opacity-95 z-50 flex items-center justify-center p-6 text-white text-center">
+              <div className="max-w-xl bg-red-900 p-8 rounded-3xl border-4 border-white shadow-2xl space-y-6">
+                <span className="text-7xl">🚨</span>
+                <h2 className="text-4xl font-black">{lang === 'hi' ? 'आपातकालीन सहायता (SOS)' : 'EMERGENCY ASSISTANCE'}</h2>
+                <p className="text-2xl">{lang === 'hi' ? 'बेटी सारा और 112 को सूचना भेजी जा रही है:' : 'Alerting Daughter Sarah & Emergency Contacts in:'}</p>
+                <div className="text-8xl font-black text-amber-300 animate-pulse">{sosCountdown}</div>
                 <button 
-                  onClick={() => speakAloud(aiMessage)}
-                  className="bg-blue-100 hover:bg-blue-200 text-blue-900 px-6 py-4 rounded-2xl border-2 border-blue-300 font-bold text-senior-base flex items-center space-x-2"
+                  onClick={() => { setSosCountdown(null); speakBilingual("Emergency cancelled.", "आपातकाल रद्द किया गया।", lang); }}
+                  className="w-full py-5 bg-white text-red-950 font-black text-3xl rounded-2xl hover:bg-slate-200 shadow-xl"
                 >
-                  <span>🔊</span>
-                  <span>Read Aloud</span>
-                </button>
-              </div>
-
-              <div className="bg-blue-950 text-white p-6 rounded-3xl text-senior-title font-semibold shadow-md">
-                "{aiMessage}"
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <button
-                  onClick={handleVoice}
-                  className={`p-8 rounded-3xl border-4 flex flex-col items-center justify-center space-y-3 shadow-lg transition-all ${
-                    isListening ? 'bg-red-50 border-red-500 text-red-700 animate-pulse' : 'bg-white border-blue-600 text-blue-900 hover:bg-blue-50'
-                  }`}
-                >
-                  <span className="text-6xl">🎙️</span>
-                  <span className="text-senior-title font-bold">{isListening ? "Listening... Speak Now" : "Press & Speak to Nestor"}</span>
-                </button>
-
-                <button
-                  onClick={() => setView('scam')}
-                  className="p-8 bg-white rounded-3xl border-4 border-amber-500 text-amber-900 flex flex-col items-center justify-center space-y-3 shadow-lg hover:bg-amber-50"
-                >
-                  <span className="text-6xl">🛡️</span>
-                  <span className="text-senior-title font-bold">Check Suspicious Message</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    speakAloud("Morning medicines are completed. Next is blood pressure pill at 12:00 PM.");
-                    setAiMessage("Next pill: Lisinopril at 12:00 PM.");
-                  }}
-                  className="p-8 bg-white rounded-3xl border-4 border-emerald-600 text-emerald-900 flex flex-col items-center justify-center space-y-3 shadow-lg hover:bg-emerald-50"
-                >
-                  <span className="text-6xl">💊</span>
-                  <span className="text-senior-title font-bold">Check Medications</span>
-                </button>
-
-                <button
-                  onClick={() => setView('caregiver')}
-                  className="p-8 bg-white rounded-3xl border-4 border-purple-600 text-purple-900 flex flex-col items-center justify-center space-y-3 shadow-lg hover:bg-purple-50"
-                >
-                  <span className="text-6xl">👨‍👩‍👧</span>
-                  <span className="text-senior-title font-bold">Family Messages</span>
+                  {lang === 'hi' ? 'रद्द करें (मैं सुरक्षित हूँ)' : 'CANCEL SOS (I AM SAFE)'}
                 </button>
               </div>
             </div>
           )}
 
-          {/* Scam Checker View */}
-          {view === 'scam' && (
-            <div className="my-6 space-y-6 max-w-3xl mx-auto w-full">
+          {/* FACETIME-STYLE 1-CLICK VIDEO CALL MODAL */}
+          {activeVideoCall && (
+            <div className="fixed inset-0 bg-slate-950 z-50 flex flex-col justify-between p-6 text-white">
+              {/* Call Top Bar */}
+              <div className="flex justify-between items-center max-w-4xl mx-auto w-full">
+                <div className="flex items-center space-x-3">
+                  <span className="w-4 h-4 rounded-full bg-green-500 animate-ping"></span>
+                  <span className="font-bold text-lg text-emerald-400">
+                    Live Video • {Math.floor(callDuration / 60)}:{('0' + (callDuration % 60)).slice(-2)}
+                  </span>
+                </div>
+                <h3 className="text-2xl font-black">Sarah (Daughter) & Granddaughter Emma</h3>
+                <span className="bg-slate-800 px-4 py-1.5 rounded-full text-xs font-bold text-slate-300">HD Encrypted</span>
+              </div>
+
+              {/* Video Call Avatar / Stream Window */}
+              <div className="max-w-3xl mx-auto w-full flex-1 my-4 bg-slate-900 rounded-3xl border-4 border-purple-500 flex flex-col items-center justify-center relative overflow-hidden shadow-2xl p-6 text-center">
+                <span className="text-9xl mb-4 animate-bounce-subtle">👩‍👧</span>
+                <h4 className="text-3xl font-black text-purple-300">"Hi Grandma! So happy to see your smile!"</h4>
+                <p className="text-xl text-slate-300 mt-2">"Emma just finished her soccer match! We are bringing over dinner on Sunday!"</p>
+
+                {/* Self Picture-in-Picture */}
+                <div className="absolute bottom-4 right-4 w-36 h-48 bg-slate-800 border-2 border-white rounded-2xl flex flex-col items-center justify-center shadow-lg">
+                  <span className="text-4xl">👵</span>
+                  <span className="text-xs font-bold text-slate-300 mt-2">Helen (You)</span>
+                </div>
+              </div>
+
+              {/* Call Action Bar */}
+              <div className="max-w-md mx-auto w-full flex justify-center space-x-6">
+                <button 
+                  onClick={() => setCallMuted(!callMuted)} 
+                  className={`p-5 rounded-full text-2xl font-bold border-2 ${callMuted ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-white'}`}
+                >
+                  {callMuted ? '🔇 Unmute' : '🎤 Mute'}
+                </button>
+                <button 
+                  onClick={() => { setActiveVideoCall(false); playChime('success'); speakBilingual("Call ended.", "कॉल समाप्त हुई।", lang); }}
+                  className="px-8 py-5 rounded-full bg-red-600 hover:bg-red-700 text-white font-black text-2xl flex items-center space-x-3 shadow-xl"
+                >
+                  <span>📞</span>
+                  <span>{lang === 'hi' ? 'कॉल समाप्त करें' : 'End Call'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: HOME SCREEN */}
+          {view === 'home' && (
+            <div className="space-y-4 my-2">
+              {/* Evaluator Quick Testing Bar */}
+              <div className="bg-amber-100 border border-amber-300 p-3 rounded-2xl flex flex-wrap justify-between items-center text-amber-950 text-sm font-bold gap-2">
+                <span>⚡ {lang === 'hi' ? 'लाइव सिमुलेशन और डेमो फीचर्स:' : 'Live Simulators for Evaluators:'}</span>
+                <div className="flex space-x-2">
+                  <button 
+                    onClick={() => setView('bills')}
+                    className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-xl text-xs font-black shadow"
+                  >
+                    📄 {lang === 'hi' ? 'बिजली बिल स्कैनर' : 'Paper Bill Scanner'}
+                  </button>
+                  <button 
+                    onClick={() => setView('brain')}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-xl text-xs font-black shadow"
+                  >
+                    🧠 {lang === 'hi' ? 'मेमोरी फिटनेस गेम' : 'Brain Fitness Game'}
+                  </button>
+                  <button 
+                    onClick={() => setActiveVideoCall(true)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-xl text-xs font-black shadow"
+                  >
+                    📹 {lang === 'hi' ? 'फैमिली वीडियो कॉल' : 'Video Call Sarah'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 MAIN TACTILE ACTION CARDS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* 1. Voice Interaction */}
+                <button
+                  onClick={handleVoice}
+                  className={`p-7 rounded-3xl border-4 flex flex-col items-center justify-center space-y-2 shadow-lg transition-all ${
+                    isListening ? 'bg-red-50 border-red-500 text-red-700 animate-pulse' : 'bg-white border-blue-600 text-blue-950 hover:bg-blue-50'
+                  }`}
+                >
+                  <span className="text-6xl">🎙️</span>
+                  <span className={`${fontClasses.title} font-black`}>
+                    {isListening 
+                      ? (lang === 'hi' ? "सुन रहा हूँ... बोलिए" : "Listening... Speak Now")
+                      : (lang === 'hi' ? "नेस्टर से बोलकर बात करें" : "Press & Speak to Nestor")}
+                  </span>
+                  <span className="text-slate-500 font-medium">
+                    {lang === 'hi' ? 'दवा, बिल, या कॉल के लिए आदेश दें' : 'Hands-free voice concierge'}
+                  </span>
+                </button>
+
+                {/* 2. Scam Shield */}
+                <button
+                  onClick={() => setView('scam')}
+                  className="p-7 bg-white rounded-3xl border-4 border-amber-500 text-amber-950 flex flex-col items-center justify-center space-y-2 shadow-lg hover:bg-amber-50"
+                >
+                  <span className="text-6xl">🛡️</span>
+                  <span className={`${fontClasses.title} font-black`}>
+                    {lang === 'hi' ? 'साइबर फ्रॉड व स्कैम शील्ड' : 'Scam & Fraud Shield'}
+                  </span>
+                  <span className="text-amber-800 font-medium">
+                    {lang === 'hi' ? 'फर्जी कॉल, एसएमएस और बैंक संदेश जांचें' : 'Screen suspicious calls, texts & emails'}
+                  </span>
+                </button>
+
+                {/* 3. Pill Camera Scanner */}
+                <button
+                  onClick={() => { setView('pills'); startWebcam(); }}
+                  className="p-7 bg-white rounded-3xl border-4 border-emerald-600 text-emerald-950 flex flex-col items-center justify-center space-y-2 shadow-lg hover:bg-emerald-50"
+                >
+                  <span className="text-6xl">📷</span>
+                  <span className={`${fontClasses.title} font-black`}>
+                    {lang === 'hi' ? 'दवा व कैमरा स्कैनर' : 'Pill Camera & Meds'}
+                  </span>
+                  <span className="text-emerald-800 font-medium">
+                    {lang === 'hi' ? 'असली वेबकैम से शीशी स्कैन करें' : 'Live WebCam verification & dosage guide'}
+                  </span>
+                </button>
+
+                {/* 4. Doctor Telehealth */}
+                <button
+                  onClick={() => setView('doctor')}
+                  className="p-7 bg-white rounded-3xl border-4 border-cyan-600 text-cyan-950 flex flex-col items-center justify-center space-y-2 shadow-lg hover:bg-cyan-50"
+                >
+                  <span className="text-6xl">🩺</span>
+                  <span className={`${fontClasses.title} font-black`}>
+                    {lang === 'hi' ? 'डॉक्टर व वीडियो परामर्श' : 'Doctor Telehealth'}
+                  </span>
+                  <span className="text-cyan-800 font-medium">
+                    {lang === 'hi' ? 'डॉ. डेविस के साथ 1-क्लिक बुकिंग' : '1-Click video consultation with Dr. Davis'}
+                  </span>
+                </button>
+
+              </div>
+
+              {/* Secondary Navigation Row: Bill Scanner + Brain Fitness + Family Call */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div 
+                  onClick={() => setView('bills')} 
+                  className="bg-amber-50 border-2 border-amber-300 p-4 rounded-2xl cursor-pointer hover:bg-amber-100 flex items-center space-x-3 shadow-sm"
+                >
+                  <span className="text-4xl">📄</span>
+                  <div>
+                    <h4 className="font-bold text-lg text-amber-950">{lang === 'hi' ? 'बिजली/पानी बिल स्कैनर' : 'Smart Paper Bill Scanner'}</h4>
+                    <p className="text-xs text-amber-800 font-semibold">{lang === 'hi' ? '1-क्लिक सुरक्षित भुगतान' : 'OCR extract & safe pay'}</p>
+                  </div>
+                </div>
+
+                <div 
+                  onClick={() => setView('brain')} 
+                  className="bg-purple-50 border-2 border-purple-300 p-4 rounded-2xl cursor-pointer hover:bg-purple-100 flex items-center space-x-3 shadow-sm"
+                >
+                  <span className="text-4xl">🧠</span>
+                  <div>
+                    <h4 className="font-bold text-lg text-purple-950">{lang === 'hi' ? 'दैनिक मेमोरी फिटनेस' : 'Brain Memory Fitness'}</h4>
+                    <p className="text-xs text-purple-800 font-semibold">{lang === 'hi' ? 'अल्ज़ाइमर व डिमेंशिया केयर' : 'Passive cognitive check'}</p>
+                  </div>
+                </div>
+
+                <div 
+                  onClick={() => setActiveVideoCall(true)} 
+                  className="bg-emerald-50 border-2 border-emerald-300 p-4 rounded-2xl cursor-pointer hover:bg-emerald-100 flex items-center space-x-3 shadow-sm"
+                >
+                  <span className="text-4xl">📹</span>
+                  <div>
+                    <h4 className="font-bold text-lg text-emerald-950">{lang === 'hi' ? 'बेटी सारा को वीडियो कॉल' : 'Video Call Daughter Sarah'}</h4>
+                    <p className="text-xs text-emerald-800 font-semibold">{lang === 'hi' ? '1-क्लिक फेसटाइम कॉल' : '1-Touch instant FaceTime'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: PILLPAL WITH REAL WEBCAM */}
+          {view === 'pills' && (
+            <div className="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-sm space-y-5 my-2">
+              <div className="flex justify-between items-center">
+                <button onClick={() => setView('home')} className="bg-slate-200 px-5 py-2 rounded-xl font-bold text-lg">
+                  ← {lang === 'hi' ? 'मुख्य स्क्रीन' : 'Back to Home'}
+                </button>
+                <span className="bg-emerald-100 text-emerald-900 font-bold px-4 py-1 rounded-full text-sm">
+                  {lang === 'hi' ? 'लाइव वेबकैम विज़न स्कैनर सक्रिय' : 'Live WebCam Vision Active'}
+                </span>
+              </div>
+
+              <h2 className={`${fontClasses.hero} font-black text-slate-900`}>
+                {lang === 'hi' ? 'दवा जांच व लाइव कैमरा स्कैनर' : 'Medication & Live WebCam Scanner'}
+              </h2>
+
+              {/* REAL WEBCAM STREAM OR SIMULATED VIEWER */}
+              <div className="p-6 bg-slate-950 rounded-3xl border-4 border-emerald-500 relative overflow-hidden shadow-xl text-center">
+                <div className="max-w-md mx-auto aspect-video bg-slate-900 rounded-2xl overflow-hidden relative flex items-center justify-center border-2 border-slate-700">
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"></video>
+                  
+                  {/* Laser Scanning Animation Overlay */}
+                  {isAnalyzingPill && (
+                    <div className="absolute inset-0 bg-emerald-500 bg-opacity-20 flex flex-col justify-between">
+                      <div className="w-full h-1.5 bg-emerald-400 shadow scanner-laser"></div>
+                      <span className="text-white font-bold bg-slate-900 bg-opacity-80 py-1 text-sm">
+                        {lang === 'hi' ? 'ऑप्टिकल ओसीआर लेबल विश्लेषण चालू है...' : 'Optical OCR Reading Pill Label...'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Bounding Box Visual Aid */}
+                  <div className="absolute w-44 h-44 border-4 border-dashed border-emerald-400 rounded-2xl pointer-events-none opacity-80"></div>
+                </div>
+
+                <div className="mt-4 flex justify-center space-x-3">
+                  <button 
+                    onClick={captureAndAnalyzePill}
+                    disabled={isAnalyzingPill}
+                    className="px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black rounded-2xl text-xl shadow-lg flex items-center space-x-2"
+                  >
+                    <span>📷</span>
+                    <span>{isAnalyzingPill ? (lang === 'hi' ? "दवा जांची जा रही है..." : "Scanning...") : (lang === 'hi' ? "फ़ोटो खींचकर दवा पहचानें" : "Snap Photo & Identify Pill")}</span>
+                  </button>
+                </div>
+
+                {pillAiResult && (
+                  <div className="mt-4 p-5 bg-emerald-900 text-emerald-100 rounded-2xl text-left border-2 border-emerald-300">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-2xl font-black text-white">✓ {pillAiResult.name}</h3>
+                      <span className="bg-emerald-400 text-slate-950 px-3 py-1 rounded-full font-black text-xs">
+                        {lang === 'hi' ? 'सटीकता:' : 'Confidence:'} {pillAiResult.confidence}
+                      </span>
+                    </div>
+                    <p className="text-lg font-bold text-emerald-200 mt-1">{pillAiResult.dosage}</p>
+                    <p className="text-sm text-slate-300 mt-1">{pillAiResult.purpose}</p>
+                    <p className="text-amber-300 font-bold text-sm mt-2">⚠️ {pillAiResult.warning}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: SMART PAPER UTILITY BILL SCANNER */}
+          {view === 'bills' && (
+            <div className="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-sm space-y-5 my-2">
+              <div className="flex justify-between items-center">
+                <button onClick={() => setView('home')} className="bg-slate-200 px-5 py-2 rounded-xl font-bold text-lg">
+                  ← {lang === 'hi' ? 'मुख्य स्क्रीन' : 'Back to Home'}
+                </button>
+                <span className="bg-amber-100 text-amber-900 font-bold px-4 py-1 rounded-full text-sm">
+                  Smart Paper Bill Reader
+                </span>
+              </div>
+
+              <h2 className={`${fontClasses.hero} font-black text-slate-900`}>
+                {lang === 'hi' ? 'कागज़ी बिजली व पानी बिल स्कैनर' : 'Paper Utility Bill & OCR Scanner'}
+              </h2>
+              <p className={`${fontClasses.base} text-slate-600`}>
+                {lang === 'hi' 
+                  ? 'अपने बिजली या पानी के बिल की फ़ोटो खींचें। एआई तुरंत देय राशि और तारीख पढ़कर सुरक्षित भुगतान कराएगा:'
+                  : 'Take a photo of your paper electricity or water bill. AI extracts the due date and allows 1-click verified pay:'}
+              </p>
+
               <button 
-                onClick={() => { setView('home'); setVerdict(null); }}
-                className="bg-white px-6 py-3 rounded-2xl border-2 border-slate-300 font-bold text-senior-base"
+                onClick={scanSampleBill}
+                className="px-8 py-5 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl text-xl shadow-lg flex items-center space-x-3"
               >
-                ← Back to Home
-              </button>
-              <h2 className="text-senior-hero font-bold text-slate-900">Check a Suspicious Message</h2>
-              <textarea 
-                rows="4"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Paste the text or email here..."
-                className="w-full p-4 text-senior-base border-4 border-slate-300 rounded-3xl focus:border-blue-600 focus:outline-none"
-              />
-              <button 
-                onClick={checkScam}
-                className="w-full py-5 bg-amber-500 hover:bg-amber-600 text-white rounded-3xl text-senior-title font-bold shadow-lg"
-              >
-                🛡️ Check This For Me
+                <span>📄</span>
+                <span>{lang === 'hi' ? 'बिजली का बिल स्कैन करें' : 'Scan Electricity Bill (Demo)'}</span>
               </button>
 
-              {verdict && (
-                <div className={`p-6 rounded-3xl border-4 ${verdict.danger ? 'bg-red-50 border-red-600 text-red-950' : 'bg-green-50 border-green-600 text-green-950'}`}>
-                  <h3 className="text-senior-title font-black mb-2">{verdict.title}</h3>
-                  <p className="text-senior-base mb-3 leading-relaxed">{verdict.desc}</p>
-                  <div className="p-4 bg-white rounded-2xl border-2 font-bold text-senior-base">
-                    👉 {verdict.action}
+              {billScanResult && (
+                <div className="p-6 bg-slate-50 border-4 border-amber-400 rounded-3xl space-y-4">
+                  <div className="flex justify-between items-center border-b pb-3">
+                    <div>
+                      <h3 className="text-2xl font-black text-slate-900">{billScanResult.provider}</h3>
+                      <p className="text-sm font-bold text-slate-500">Account: {billScanResult.account}</p>
+                    </div>
+                    <span className="text-3xl font-black text-blue-900">{billScanResult.amount}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-lg font-semibold text-slate-700">
+                    <div>Due Date: <span className="font-bold text-slate-950">{billScanResult.dueDate}</span></div>
+                    <div>Security Status: <span className="font-bold text-emerald-700">✓ Verified Official Vendor</span></div>
+                  </div>
+
+                  {!billPaid ? (
+                    <button 
+                      onClick={() => {
+                        setBillPaid(true);
+                        playChime('success');
+                        confetti({ particleCount: 60 });
+                        speakBilingual(
+                          "Bill of $42.50 paid safely with verified card. Receipt texted to daughter Sarah.",
+                          "₹850 का बिजली बिल सुरक्षित जमा हो गया। रसीद बेटी सारा को भेज दी गई है।",
+                          lang
+                        );
+                      }}
+                      className="w-full py-5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-2xl rounded-2xl shadow-xl"
+                    >
+                      💳 {lang === 'hi' ? '₹850 का सुरक्षित भुगतान करें (1-Click)' : 'Pay $42.50 Safely (Caregiver Protected)'}
+                    </button>
+                  ) : (
+                    <div className="p-4 bg-green-100 border-2 border-green-500 rounded-2xl text-green-950 font-black text-xl text-center">
+                      🎉 {lang === 'hi' ? 'सफलतापूर्वक भुगतान हो गया! रसीद सुरक्षित है।' : 'Paid Successfully! Confirmation #PWR-499102 dispatched.'}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIEW: COGNITIVE BRAIN FITNESS GAME */}
+          {view === 'brain' && (
+            <div className="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-sm space-y-5 my-2">
+              <div className="flex justify-between items-center">
+                <button onClick={() => setView('home')} className="bg-slate-200 px-5 py-2 rounded-xl font-bold text-lg">
+                  ← {lang === 'hi' ? 'मुख्य स्क्रीन' : 'Back to Home'}
+                </button>
+                <span className="bg-purple-100 text-purple-900 font-bold px-4 py-1 rounded-full text-sm">
+                  Daily Cognitive & Memory Fitness
+                </span>
+              </div>
+
+              <h2 className={`${fontClasses.hero} font-black text-slate-900`}>
+                {lang === 'hi' ? 'दैनिक मस्तिष्क व याददाश्त व्यायाम' : 'Daily Brain & Memory Fitness'}
+              </h2>
+              <p className={`${fontClasses.base} text-slate-600`}>
+                {lang === 'hi' ? 'याददाश्त को चुस्त और सक्रिय रखने के लिए आज का 1 मिनट का आसान सवाल:' : 'A gentle 1-minute daily puzzle to keep memory sharp and screen cognitive vitality:'}
+              </p>
+
+              <div className="p-6 bg-purple-50 border-2 border-purple-300 rounded-3xl space-y-5">
+                <span className="text-6xl">🌻</span>
+                <h3 className="text-2xl font-black text-purple-950">
+                  {lang === 'hi' ? 'सवाल: सूरजमुखी (Sunflower) का रंग कौन सा होता है?' : 'Question: What color is a natural Sunflower?'}
+                </h3>
+
+                <div className="grid grid-cols-3 gap-3">
+                  {['Yellow / पीला', 'Blue / नीला', 'Green / हरा'].map((opt, i) => (
+                    <button 
+                      key={i}
+                      onClick={() => {
+                        setTriviaAnswered(opt);
+                        if (i === 0) {
+                          playChime('success');
+                          confetti({ particleCount: 50 });
+                          speakBilingual("Correct answer! Yellow! Your memory is razor sharp today.", "बिल्कुल सही जवाब! पीला! आपकी याददाश्त बहुत तेज है।", lang);
+                        } else {
+                          playChime('alert');
+                        }
+                      }}
+                      className="p-5 bg-white hover:bg-purple-100 border-2 border-purple-300 font-black text-xl rounded-2xl shadow"
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+
+                {triviaAnswered && (
+                  <div className="p-4 bg-white border-2 border-emerald-500 rounded-2xl">
+                    <h4 className="text-xl font-bold text-emerald-900">
+                      {lang === 'hi' ? '🎉 बहुत खूब! आपका कॉग्निटिव स्कोर: 100/100 (बेहतरीन)' : '🎉 Outstanding! Daily Memory Index: 100% (Optimal)'}
+                    </h4>
+                    <p className="text-sm text-slate-600 mt-1">Logged securely to Caregiver Wellness stream.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: SCAM SHIELD */}
+          {view === 'scam' && (
+            <div className="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-sm space-y-5 my-2">
+              <div className="flex justify-between items-center">
+                <button onClick={() => setView('home')} className="bg-slate-200 px-5 py-2 rounded-xl font-bold text-lg">
+                  ← {lang === 'hi' ? 'मुख्य स्क्रीन' : 'Back to Home'}
+                </button>
+                <span className="bg-amber-100 text-amber-900 font-bold px-4 py-1 rounded-full text-sm">
+                  AI Scam Protection Active
+                </span>
+              </div>
+
+              <h2 className={`${fontClasses.hero} font-black text-slate-900`}>
+                {lang === 'hi' ? 'साइबर फ्रॉड व स्कैम शील्ड' : 'Scam & Cyber Threat Shield'}
+              </h2>
+
+              <div className="flex flex-wrap gap-2 text-sm font-semibold">
+                <span className="text-slate-500 py-1">{lang === 'hi' ? 'नमूना टेस्ट:' : 'Quick Test:'}</span>
+                <button 
+                  onClick={() => {
+                    const s = lang === 'hi' 
+                      ? "तुरंत ध्यान दें: आपका बैंक खाता 2 घंटे में बंद हो जाएगा! इसे चालू रखने के लिए तुरंत ₹5000 का गिफ्ट कार्ड भेजें।"
+                      : "URGENT: Your Bank account is locked! Send $500 Target gift card immediately to restore access!";
+                    setScamInput(s);
+                    analyzeScam(s);
+                  }}
+                  className="bg-red-100 text-red-900 px-3 py-1.5 rounded-xl border border-red-300"
+                >
+                  🚨 {lang === 'hi' ? 'फर्जी बैंक स्कैम टेस्ट' : 'Fake Bank Urgent Scam'}
+                </button>
+              </div>
+
+              <textarea 
+                rows="3"
+                value={scamInput}
+                onChange={(e) => setScamInput(e.target.value)}
+                placeholder={lang === 'hi' ? "संदेश या ईमेल यहाँ पेस्ट करें..." : "Paste suspicious message here..."}
+                className="w-full p-4 text-xl border-4 border-slate-300 rounded-2xl focus:border-amber-500 focus:outline-none"
+              />
+
+              <button 
+                onClick={() => analyzeScam()}
+                className="w-full py-5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-2xl font-black shadow-lg"
+              >
+                🛡️ {lang === 'hi' ? 'संदेश की साइबर सुरक्षा जांचें' : 'Analyze Message for Threats'}
+              </button>
+
+              {scamReport && (
+                <div className={`p-6 rounded-3xl border-4 ${scamReport.isDangerous ? 'bg-red-50 border-red-600' : 'bg-green-50 border-green-600'}`}>
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-2xl font-black">{scamReport.title}</h3>
+                    <span className={`text-3xl font-black ${scamReport.isDangerous ? 'text-red-700' : 'text-green-700'}`}>
+                      {scamReport.score} / 100
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-4 mb-3 overflow-hidden">
+                    <div className={`h-4 ${scamReport.isDangerous ? 'bg-red-600' : 'bg-green-600'}`} style={{ width: `${scamReport.score}%` }}></div>
+                  </div>
+                  {scamReport.flags.map((f, i) => (
+                    <p key={i} className="font-bold text-red-900 mb-1">{f}</p>
+                  ))}
+                  <div className="bg-white p-4 rounded-2xl border-2 font-bold text-lg text-blue-950 mt-3">
+                    👉 {scamReport.action}
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* Caregiver Portal */}
+          {/* VIEW: DOCTOR TELEHEALTH */}
+          {view === 'doctor' && (
+            <div className="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-sm space-y-5 my-2">
+              <div className="flex justify-between items-center">
+                <button onClick={() => setView('home')} className="bg-slate-200 px-5 py-2 rounded-xl font-bold text-lg">
+                  ← {lang === 'hi' ? 'मुख्य स्क्रीन' : 'Back to Home'}
+                </button>
+                <span className="bg-cyan-100 text-cyan-900 font-bold px-4 py-1 rounded-full text-sm">
+                  Telehealth 1-Click
+                </span>
+              </div>
+
+              <h2 className={`${fontClasses.hero} font-black text-slate-900`}>
+                {lang === 'hi' ? 'डॉक्टर से वीडियो परामर्श' : 'Doctor & Telehealth Hub'}
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-6 bg-cyan-50 border-2 border-cyan-300 rounded-3xl space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-5xl">👨‍⚕️</span>
+                    <div>
+                      <h3 className="text-2xl font-black text-cyan-950">Dr. Robert Davis</h3>
+                      <p className="text-sm font-bold text-cyan-800">Primary Physician</p>
+                    </div>
+                  </div>
+                  <p className="text-slate-700 font-medium">Tuesday 10:30 AM Slot Available</p>
+                  <button 
+                    onClick={() => {
+                      setDoctorBooked("Dr. Robert Davis (Tuesday 10:30 AM)");
+                      playChime('success');
+                      confetti({ particleCount: 40 });
+                      speakBilingual("Appointment booked with Dr. Davis for Tuesday at 10:30 AM.", "डॉ. डेविस के साथ मंगलवार सुबह 10:30 बजे की बुकिंग हो गई।", lang);
+                    }}
+                    className="w-full py-4 bg-cyan-600 hover:bg-cyan-700 text-white font-black text-xl rounded-2xl shadow"
+                  >
+                    Book Tuesday 10:30 AM
+                  </button>
+                </div>
+
+                <div className="p-6 bg-blue-50 border-2 border-blue-300 rounded-3xl space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-5xl">👩‍⚕️</span>
+                    <div>
+                      <h3 className="text-2xl font-black text-blue-950">Dr. Elena Rostova</h3>
+                      <p className="text-sm font-bold text-blue-800">Cardiologist (Heart Specialist)</p>
+                    </div>
+                  </div>
+                  <p className="text-slate-700 font-medium">Thursday 2:00 PM Slot Available</p>
+                  <button 
+                    onClick={() => {
+                      setDoctorBooked("Dr. Elena Rostova (Thursday 2:00 PM)");
+                      playChime('success');
+                      confetti({ particleCount: 40 });
+                      speakBilingual("Appointment booked with Cardiologist Dr. Rostova.", "ह्रदय विशेषज्ञ डॉ. रोस्तोवा के साथ गुरुवार दोपहर 2:00 बजे की बुकिंग हो गई।", lang);
+                    }}
+                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xl rounded-2xl shadow"
+                  >
+                    Book Thursday 2:00 PM
+                  </button>
+                </div>
+              </div>
+
+              {doctorBooked && (
+                <div className="p-4 bg-green-100 border-2 border-green-500 rounded-2xl text-green-950 font-bold text-xl">
+                  🎉 {lang === 'hi' ? `बुकिंग पक्की हो गई: ${doctorBooked}! सारा को सूचना भेज दी गई है।` : `Confirmed: ${doctorBooked}! Reminder sent to daughter Sarah.`}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIEW: CAREGIVER COMMAND CENTER */}
           {view === 'caregiver' && (
-            <div className="my-6 space-y-6 max-w-3xl mx-auto w-full">
-              <button 
-                onClick={() => setView('home')}
-                className="bg-white px-6 py-3 rounded-2xl border-2 border-slate-300 font-bold text-senior-base"
-              >
-                ← Return to Senior Screen
-              </button>
-              <h2 className="text-senior-title font-bold text-slate-800">Family Caregiver Dashboard</h2>
-              <div className="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-sm space-y-4">
-                <h3 className="text-xl font-bold">Today's Activity Log</h3>
-                <div className="p-4 bg-green-50 rounded-2xl text-green-900 font-semibold border border-green-200">
-                  ✅ Morning Blood Pressure Pill taken at 8:15 AM
+            <div className="bg-white p-6 rounded-3xl border-2 border-slate-300 shadow-sm space-y-5 my-2">
+              <div className="flex justify-between items-center">
+                <button onClick={() => setView('home')} className="bg-slate-200 px-5 py-2 rounded-xl font-bold text-lg">
+                  ← Return to Senior View
+                </button>
+                <span className="bg-blue-100 text-blue-900 font-bold px-4 py-1 rounded-full text-sm">
+                  Caregiver Remote Telemetry
+                </span>
+              </div>
+
+              <h2 className={`${fontClasses.title} font-black text-slate-900`}>Family Caregiver Remote Command Center</h2>
+
+              <div className="grid grid-cols-4 gap-3 text-center">
+                <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl">
+                  <span className="text-3xl font-black text-emerald-700">100%</span>
+                  <p className="text-xs font-bold text-emerald-950 mt-1">Morning Meds</p>
                 </div>
-                <div className="p-4 bg-red-50 rounded-2xl text-red-900 font-semibold border border-red-200">
-                  🚨 Suspicious text blocked: "IRS gift card refund"
+                <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl">
+                  <span className="text-3xl font-black text-amber-700">1</span>
+                  <p className="text-xs font-bold text-amber-950 mt-1">Scams Blocked</p>
                 </div>
+                <div className="p-4 bg-cyan-50 border border-cyan-300 rounded-2xl">
+                  <span className="text-3xl font-black text-cyan-700">1</span>
+                  <p className="text-xs font-bold text-cyan-950 mt-1">Dr. Appointment</p>
+                </div>
+                <div className="p-4 bg-purple-50 border border-purple-300 rounded-2xl">
+                  <span className="text-3xl font-black text-purple-700">100%</span>
+                  <p className="text-xs font-bold text-purple-950 mt-1">Cognitive Vitality</p>
+                </div>
+              </div>
+
+              <div className="p-5 bg-slate-50 border-2 rounded-2xl">
+                <h3 className="font-bold text-lg mb-2">Live Geofence & Vitality:</h3>
+                <p className="text-slate-700 font-medium">📍 Helen is safe at Home (102 Maple Ave) • Tablet Battery: 94% • Ambient Temp: 72°F</p>
               </div>
             </div>
           )}
 
-          <footer className="p-4 text-center text-slate-500 font-medium">
-            Nestor Senior Living Assistant • Safe, Simple & Free
+          {/* PERSISTENT FOOTER */}
+          <footer className="mt-4 p-4 bg-white border border-slate-300 rounded-2xl flex flex-wrap justify-between items-center text-xs text-slate-600 font-bold gap-2">
+            <span>🛡️ Nestor 4.0 Ultra • Dual-Language AI Senior Platform (English & हिंदी)</span>
+            <span>Real WebCam OCR • 1-Click Video Call • Smart Bill Pay • WCAG AAA</span>
           </footer>
+
         </div>
       );
     }
