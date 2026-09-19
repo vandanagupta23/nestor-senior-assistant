@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nestor - Senior Living Assistant</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontSize: {
+            'senior-base': '1.35rem',
+            'senior-title': '2rem',
+            'senior-hero': '2.6rem',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 select-none">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    const speakAloud = (text) => {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.85;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    };
+
+    function App() {
+      const [view, setView] = useState('home');
+      const [aiMessage, setAiMessage] = useState("Good morning, Helen! How can I help you today?");
+      const [isListening, setIsListening] = useState(false);
+      const [inputMessage, setInputMessage] = useState('');
+      const [verdict, setVerdict] = useState(null);
+
+      const handleVoice = () => {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) {
+          alert("Please use Google Chrome or Microsoft Edge for voice support.");
+          return;
+        }
+        setIsListening(true);
+        speakAloud("I am listening. What can I do for you?");
+        
+        const rec = new SpeechRec();
+        rec.lang = 'en-US';
+        rec.onresult = (e) => {
+          setIsListening(false);
+          const transcript = e.results[0][0].transcript;
+          const lower = transcript.toLowerCase();
+          if (lower.includes("scam") || lower.includes("message")) {
+            setView('scam');
+          } else {
+            const reply = `I heard: "${transcript}". Let's get that done.`;
+            setAiMessage(reply);
+            speakAloud(reply);
+          }
+        };
+        rec.onerror = () => setIsListening(false);
+        rec.onend = () => setIsListening(false);
+        rec.start();
+      };
+
+      const checkScam = () => {
+        if (!inputMessage.trim()) return;
+        const lower = inputMessage.toLowerCase();
+        const scamWords = ['urgent', 'password', 'bank', 'gift card', 'irs', 'wire', 'suspended', 'locked', 'click here'];
+        const isScam = scamWords.some(word => lower.includes(word));
+
+        if (isScam) {
+          setVerdict({
+            danger: true,
+            title: "⚠️ Dangerous Scam Detected!",
+            desc: "Banks and official agencies will never demand urgent gift cards, wire transfers, or passwords via text or call.",
+            action: "Delete this message immediately. Do not click any links."
+          });
+          speakAloud("Warning. This appears to be a scam. Do not send any money.");
+        } else {
+          setVerdict({
+            danger: false,
+            title: "✅ This Message Looks Safe",
+            desc: "No common scam threats or urgent payment requests were found.",
+            action: "Safe to read. If still unsure, ask your family to double-check."
+          });
+          speakAloud("This message looks safe.");
+        }
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col justify-between max-w-5xl mx-auto p-4">
+          
+          {/* Top Navbar */}
+          <nav className="bg-white p-4 rounded-2xl border-2 border-slate-300 flex justify-between items-center shadow-sm">
+            <span className="text-2xl font-black text-blue-900">Nestor Senior Assistant</span>
+            <button 
+              onClick={() => setView(view === 'caregiver' ? 'home' : 'caregiver')}
+              className="bg-slate-200 hover:bg-slate-300 font-bold px-5 py-2 rounded-xl text-slate-800 transition"
+            >
+              {view === 'caregiver' ? '← Back to Senior Screen' : 'Caregiver Portal (Family View)'}
+            </button>
+          </nav>
+
+          {/* Senior Home View */}
+          {view === 'home' && (
+            <div className="my-6 space-y-6">
+              <div className="bg-white p-6 rounded-3xl border-2 border-slate-200 flex justify-between items-center shadow-sm">
+                <div>
+                  <h1 className="text-senior-hero font-black text-blue-900">Nestor</h1>
+                  <p className="text-senior-base text-slate-600">Today is Saturday • Sunny & 72°F</p>
+                </div>
+                <button 
+                  onClick={() => speakAloud(aiMessage)}
+                  className="bg-blue-100 hover:bg-blue-200 text-blue-900 px-6 py-4 rounded-2xl border-2 border-blue-300 font-bold text-senior-base flex items-center space-x-2"
+                >
+                  <span>🔊</span>
+                  <span>Read Aloud</span>
+                </button>
+              </div>
+
+              <div className="bg-blue-950 text-white p-6 rounded-3xl text-senior-title font-semibold shadow-md">
+                "{aiMessage}"
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <button
+                  onClick={handleVoice}
+                  className={`p-8 rounded-3xl border-4 flex flex-col items-center justify-center space-y-3 shadow-lg transition-all ${
+                    isListening ? 'bg-red-50 border-red-500 text-red-700 animate-pulse' : 'bg-white border-blue-600 text-blue-900 hover:bg-blue-50'
+                  }`}
+                >
+                  <span className="text-6xl">🎙️</span>
+                  <span className="text-senior-title font-bold">{isListening ? "Listening... Speak Now" : "Press & Speak to Nestor"}</span>
+                </button>
+
+                <button
+                  onClick={() => setView('scam')}
+                  className="p-8 bg-white rounded-3xl border-4 border-amber-500 text-amber-900 flex flex-col items-center justify-center space-y-3 shadow-lg hover:bg-amber-50"
+                >
+                  <span className="text-6xl">🛡️</span>
+                  <span className="text-senior-title font-bold">Check Suspicious Message</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    speakAloud("Morning medicines are completed. Next is blood pressure pill at 12:00 PM.");
+                    setAiMessage("Next pill: Lisinopril at 12:00 PM.");
+                  }}
+                  className="p-8 bg-white rounded-3xl border-4 border-emerald-600 text-emerald-900 flex flex-col items-center justify-center space-y-3 shadow-lg hover:bg-emerald-50"
+                >
+                  <span className="text-6xl">💊</span>
+                  <span className="text-senior-title font-bold">Check Medications</span>
+                </button>
+
+                <button
+                  onClick={() => setView('caregiver')}
+                  className="p-8 bg-white rounded-3xl border-4 border-purple-600 text-purple-900 flex flex-col items-center justify-center space-y-3 shadow-lg hover:bg-purple-50"
+                >
+                  <span className="text-6xl">👨‍👩‍👧</span>
+                  <span className="text-senior-title font-bold">Family Messages</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Scam Checker View */}
+          {view === 'scam' && (
+            <div className="my-6 space-y-6 max-w-3xl mx-auto w-full">
+              <button 
+                onClick={() => { setView('home'); setVerdict(null); }}
+                className="bg-white px-6 py-3 rounded-2xl border-2 border-slate-300 font-bold text-senior-base"
+              >
+                ← Back to Home
+              </button>
+              <h2 className="text-senior-hero font-bold text-slate-900">Check a Suspicious Message</h2>
+              <textarea 
+                rows="4"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder="Paste the text or email here..."
+                className="w-full p-4 text-senior-base border-4 border-slate-300 rounded-3xl focus:border-blue-600 focus:outline-none"
+              />
+              <button 
+                onClick={checkScam}
+                className="w-full py-5 bg-amber-500 hover:bg-amber-600 text-white rounded-3xl text-senior-title font-bold shadow-lg"
+              >
+                🛡️ Check This For Me
+              </button>
+
+              {verdict && (
+                <div className={`p-6 rounded-3xl border-4 ${verdict.danger ? 'bg-red-50 border-red-600 text-red-950' : 'bg-green-50 border-green-600 text-green-950'}`}>
+                  <h3 className="text-senior-title font-black mb-2">{verdict.title}</h3>
+                  <p className="text-senior-base mb-3 leading-relaxed">{verdict.desc}</p>
+                  <div className="p-4 bg-white rounded-2xl border-2 font-bold text-senior-base">
+                    👉 {verdict.action}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Caregiver Portal */}
+          {view === 'caregiver' && (
+            <div className="my-6 space-y-6 max-w-3xl mx-auto w-full">
+              <button 
+                onClick={() => setView('home')}
+                className="bg-white px-6 py-3 rounded-2xl border-2 border-slate-300 font-bold text-senior-base"
+              >
+                ← Return to Senior Screen
+              </button>
+              <h2 className="text-senior-title font-bold text-slate-800">Family Caregiver Dashboard</h2>
+              <div className="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-sm space-y-4">
+                <h3 className="text-xl font-bold">Today's Activity Log</h3>
+                <div className="p-4 bg-green-50 rounded-2xl text-green-900 font-semibold border border-green-200">
+                  ✅ Morning Blood Pressure Pill taken at 8:15 AM
+                </div>
+                <div className="p-4 bg-red-50 rounded-2xl text-red-900 font-semibold border border-red-200">
+                  🚨 Suspicious text blocked: "IRS gift card refund"
+                </div>
+              </div>
+            </div>
+          )}
+
+          <footer className="p-4 text-center text-slate-500 font-medium">
+            Nestor Senior Living Assistant • Safe, Simple & Free
+          </footer>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
